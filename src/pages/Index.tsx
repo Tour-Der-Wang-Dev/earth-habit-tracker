@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,30 +16,11 @@ import { VersionControl } from '@/components/VersionControl';
 import { SecurityPractices } from '@/components/SecurityPractices';
 import { ComplianceRequirements } from '@/components/ComplianceRequirements';
 import { DocumentationPreview } from '@/components/DocumentationPreview';
+import { useDocumentationStore } from '@/store/documentationStore';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [documentationData, setDocumentationData] = useState({
-    overview: {},
-    personas: [],
-    features: [],
-    design: {},
-    api: {},
-    database: {},
-    environment: {},
-    testing: {},
-    deployment: {},
-    versionControl: {},
-    security: {},
-    compliance: {}
-  });
-
-  const updateDocumentationData = (section: string, data: any) => {
-    setDocumentationData(prev => ({
-      ...prev,
-      [section]: data
-    }));
-  };
+  const { data, updateSection } = useDocumentationStore();
 
   const sections = [
     { id: 'overview', label: 'Project Overview', icon: FileText, component: ProjectOverview },
@@ -65,8 +45,8 @@ const Index = () => {
             Project Documentation Generator
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Create comprehensive project documentation that covers all aspects of your development process,
-            from user personas to deployment instructions.
+            Create comprehensive project documentation with enhanced features including auto-save,
+            multiple export formats, and advanced preview capabilities.
           </p>
         </div>
 
@@ -76,7 +56,8 @@ const Index = () => {
               <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
                 <CardTitle className="text-2xl text-gray-900">Documentation Sections</CardTitle>
                 <CardDescription>
-                  Complete each section to build comprehensive project documentation
+                  Complete each section to build comprehensive project documentation.
+                  Data is automatically saved as you work.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -102,8 +83,8 @@ const Index = () => {
                     return (
                       <TabsContent key={section.id} value={section.id} className="p-6">
                         <Component
-                          data={documentationData[section.id as keyof typeof documentationData]}
-                          onUpdate={(data: any) => updateDocumentationData(section.id, data)}
+                          data={data[section.id as keyof typeof data]}
+                          onUpdate={(sectionData: any) => updateSection(section.id as keyof typeof data, sectionData)}
                         />
                       </TabsContent>
                     );
@@ -116,13 +97,13 @@ const Index = () => {
           <div className="lg:col-span-1">
             <Card className="shadow-lg sticky top-8">
               <CardHeader className="border-b bg-gradient-to-r from-green-50 to-emerald-50">
-                <CardTitle className="text-xl text-gray-900">Documentation Preview</CardTitle>
+                <CardTitle className="text-xl text-gray-900">Enhanced Preview & Export</CardTitle>
                 <CardDescription>
-                  Live preview of your generated documentation
+                  Live preview with multiple export options and data management
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <DocumentationPreview data={documentationData} />
+                <DocumentationPreview data={data} />
               </CardContent>
             </Card>
           </div>

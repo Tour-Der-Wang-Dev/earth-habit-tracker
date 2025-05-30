@@ -1,111 +1,108 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Eye } from 'lucide-react';
+import { Download, Eye, FileText, Upload, Trash2, Save } from 'lucide-react';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useDocumentationStore } from '@/store/documentationStore';
+import { generateEnhancedMarkdown, downloadMarkdown, downloadJSON } from '@/utils/markdownGenerator';
+import { generatePDF } from '@/utils/pdfGenerator';
+import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 
 interface DocumentationPreviewProps {
   data: any;
 }
 
 export const DocumentationPreview = ({ data }: DocumentationPreviewProps) => {
-  const [showFullPreview, setShowFullPreview] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const { clearData, exportData, importData, getCompletionPercentage, lastSaved } = useDocumentationStore();
 
-  const generateMarkdown = () => {
-    let markdown = `# Project Documentation\n\n`;
-
-    // Project Overview
-    if (data.overview?.projectName) {
-      markdown += `## Project Overview\n\n`;
-      markdown += `**Project Name:** ${data.overview.projectName}\n\n`;
-      if (data.overview.description) {
-        markdown += `**Description:** ${data.overview.description}\n\n`;
-      }
-      if (data.overview.primaryGoals) {
-        markdown += `**Primary Goals:** ${data.overview.primaryGoals}\n\n`;
-      }
-      if (data.overview.keyObjectives) {
-        markdown += `**Key Objectives:** ${data.overview.keyObjectives}\n\n`;
-      }
-    }
-
-    // User Personas
-    if (data.personas?.length > 0) {
-      markdown += `## User Personas\n\n`;
-      data.personas.forEach((persona: any, index: number) => {
-        if (persona.name) {
-          markdown += `### ${persona.name}\n\n`;
-          if (persona.demographics) markdown += `**Demographics:** ${persona.demographics}\n\n`;
-          if (persona.goals) markdown += `**Goals:** ${persona.goals}\n\n`;
-          if (persona.painPoints) markdown += `**Pain Points:** ${persona.painPoints}\n\n`;
-          if (persona.behaviors) markdown += `**Behaviors:** ${persona.behaviors}\n\n`;
-          if (persona.quote) markdown += `**Quote:** "${persona.quote}"\n\n`;
-        }
-      });
-    }
-
-    // Features
-    if (data.features?.length > 0) {
-      markdown += `## Feature Specifications\n\n`;
-      data.features.forEach((feature: any) => {
-        if (feature.name) {
-          markdown += `### ${feature.name}\n\n`;
-          if (feature.userStory) markdown += `**User Story:** ${feature.userStory}\n\n`;
-          if (feature.acceptanceCriteria) markdown += `**Acceptance Criteria:**\n${feature.acceptanceCriteria}\n\n`;
-          if (feature.description) markdown += `**Description:** ${feature.description}\n\n`;
-        }
-      });
-    }
-
-    // Continue with other sections...
-    return markdown;
+  const handleDownloadMarkdown = () => {
+    const markdown = generateEnhancedMarkdown(data);
+    const filename = data.overview?.projectName 
+      ? `${data.overview.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_documentation.md`
+      : 'project_documentation.md';
+    downloadMarkdown(markdown, filename);
+    toast.success('Markdown downloaded successfully!');
   };
 
-  const downloadDocumentation = () => {
-    const markdown = generateMarkdown();
-    const blob = new Blob([markdown], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${data.overview?.projectName || 'project'}-documentation.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleDownloadJSON = () => {
+    const filename = data.overview?.projectName 
+      ? `${data.overview.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_data.json`
+      : 'project_data.json';
+    downloadJSON(data, filename);
+    toast.success('JSON data downloaded successfully!');
   };
 
-  const getCompletionPercentage = () => {
-    const sections = ['overview', 'personas', 'features', 'design', 'api', 'database', 'environment', 'testing', 'deployment', 'versionControl', 'security', 'compliance'];
-    let completed = 0;
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      await generatePDF(data);
+      toast.success('PDF generated successfully!');
+    } catch (error) {
+      toast.error('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
-    sections.forEach(section => {
-      if (section === 'personas' || section === 'features') {
-        if (data[section]?.length > 0) completed++;
-      } else {
-        if (data[section] && Object.keys(data[section]).length > 0) completed++;
+  const handleImportJSON = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          const result = importData(e.target.result);
+          if (result) {
+            toast.success('Data imported successfully!');
+            window.location.reload(); // Refresh to show imported data
+          } else {
+            toast.error('Failed to import data. Please check the file format.');
+          }
+        };
+        reader.readAsText(file);
       }
-    });
-
-    return Math.round((completed / sections.length) * 100);
+    };
+    input.click();
   };
+
+  const handleClearData = () => {
+    if (window.confirm('Are you sure you want to clear all documentation data? This action cannot be undone.')) {
+      clearData();
+      toast.success('All data cleared successfully!');
+      window.location.reload();
+    }
+  };
+
+  const completion = getCompletionPercentage();
 
   return (
     <div className="space-y-4">
+      {/* Completion Status */}
       <div className="text-center">
         <div className="text-2xl font-bold text-green-600 mb-2">
-          {getCompletionPercentage()}%
+          {completion}%
         </div>
         <p className="text-sm text-gray-600">Documentation Complete</p>
         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
           <div 
             className="bg-green-600 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${getCompletionPercentage()}%` }}
+            style={{ width: `${completion}%` }}
           ></div>
         </div>
+        {lastSaved && (
+          <p className="text-xs text-gray-500 mt-2">
+            Last saved: {lastSaved.toLocaleString()}
+          </p>
+        )}
       </div>
 
+      {/* Preview & Export Actions */}
       <div className="space-y-3">
         <Dialog>
           <DialogTrigger asChild>
@@ -116,28 +113,60 @@ export const DocumentationPreview = ({ data }: DocumentationPreviewProps) => {
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[80vh]">
             <DialogHeader>
-              <DialogTitle>Documentation Preview</DialogTitle>
+              <DialogTitle>Enhanced Documentation Preview</DialogTitle>
               <DialogDescription>
-                Full preview of your generated project documentation
+                Full preview with enhanced formatting and styling
               </DialogDescription>
             </DialogHeader>
             <ScrollArea className="h-[60vh] pr-4">
               <div className="prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap text-sm">{generateMarkdown()}</pre>
+                <ReactMarkdown>{generateEnhancedMarkdown(data)}</ReactMarkdown>
               </div>
             </ScrollArea>
           </DialogContent>
         </Dialog>
 
-        <Button onClick={downloadDocumentation} className="w-full">
-          <Download className="h-4 w-4 mr-2" />
-          Download Markdown
-        </Button>
+        {/* Export Options */}
+        <div className="grid grid-cols-1 gap-2">
+          <Button onClick={handleDownloadMarkdown} className="w-full" variant="default">
+            <Download className="h-4 w-4 mr-2" />
+            Download Markdown
+          </Button>
+          
+          <Button onClick={handleDownloadJSON} className="w-full" variant="outline">
+            <Save className="h-4 w-4 mr-2" />
+            Export JSON Data
+          </Button>
+          
+          <Button 
+            onClick={handleDownloadPDF} 
+            className="w-full" 
+            variant="secondary"
+            disabled={isGeneratingPDF}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            {isGeneratingPDF ? 'Generating PDF...' : 'Generate PDF'}
+          </Button>
+        </div>
+
+        {/* Data Management */}
+        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+          <Button onClick={handleImportJSON} variant="outline" size="sm">
+            <Upload className="h-4 w-4 mr-2" />
+            Import Data
+          </Button>
+          
+          <Button onClick={handleClearData} variant="destructive" size="sm">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear All
+          </Button>
+        </div>
       </div>
 
+      {/* Quick Summary */}
       <Card className="bg-gray-50">
         <CardHeader>
-          <CardTitle className="text-sm">Quick Summary</CardTitle>
+          <CardTitle className="text-sm">Project Summary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-xs">
           <div className="flex justify-between">
@@ -155,6 +184,10 @@ export const DocumentationPreview = ({ data }: DocumentationPreviewProps) => {
           <div className="flex justify-between">
             <span>API Endpoints:</span>
             <span className="font-medium">{data.api?.endpoints?.length || 0}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Completion:</span>
+            <span className="font-medium text-green-600">{completion}%</span>
           </div>
         </CardContent>
       </Card>
